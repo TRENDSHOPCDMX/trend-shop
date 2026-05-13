@@ -40,7 +40,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // Configuración de la plataforma
         const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
         const appId = window.__app_id || 'trend-shop-cdmx';
         const initialAuthToken = window.__initial_auth_token;
@@ -65,13 +64,11 @@
             const [search, setSearch] = useState("");
             const [logo, setLogo] = useState("https://placehold.co/200x200/1E3A5F/white?text=Trend+Shop");
             
-            // Clave API de ImgBB guardada localmente para facilitar la subida
             const [imgbbKey, setImgbbKey] = useState(localStorage.getItem('imgbb_key') || "");
             const [uploading, setUploading] = useState(false);
             
             const [newP, setNewP] = useState({ name: "", price: "", category: "Ropa", gender: "Mujer", size: "M", description: "", imageUrl: "" });
 
-            // Autenticación
             useEffect(() => {
                 const initAuth = async () => {
                     try {
@@ -84,7 +81,6 @@
                 return () => unsubscribe();
             }, []);
 
-            // Carga de Datos desde Firestore
             useEffect(() => {
                 if (!user) return;
                 
@@ -118,7 +114,6 @@
                 setPass("");
             };
 
-            // Función de subida automática de archivos a ImgBB
             const handleFileUpload = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
