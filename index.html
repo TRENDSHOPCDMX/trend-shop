@@ -1,10 +1,16 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- VISTA PREVIA PARA WHATSAPP / REDES SOCIALES -->
     <title>Trend Shop | Tu Estilo Más Trend</title>
+    <meta name="description" content="Boutique Online Mexicana - Ropa, Calzado y Accesorios como nuevos.">
+    <meta property="og:title" content="Trend Shop | Tu Estilo Más Trend">
+    <meta property="og:description" content="Descubre nuestra curaduría de ropa y calzado. ¡Compra directo por WhatsApp!">
+    <meta property="og:image" content="e336005e-4c7f-4578-a43c-ccc080b8def9_2.jpeg">
+    <meta property="og:type" content="website">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -26,10 +32,9 @@
         .product-card:hover { transform: translateY(-10px); box-shadow: 0 25px 50px rgba(0,0,0,0.1); }
         .magenta-glow { box-shadow: 0 10px 20px rgba(233, 30, 99, 0.2); }
         .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
-        @keyframes bounce-soft { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-        .animate-bounce-soft { animation: bounce-soft 3s infinite; }
         .category-pill { transition: all 0.3s ease; cursor: pointer; white-space: nowrap; }
         .category-pill.active { background: #E91E63; color: white; transform: scale(1.05); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
@@ -38,7 +43,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // Configuración de Firebase integrada
+        // Configuración de Firebase Hardcoded para persistencia total
         const firebaseConfig = {
             apiKey: "AIzaSyDsg72_uPQzY_I3DDbBeW-lpk2ggAlvYHQ",
             authDomain: "trendshopcdmx.firebaseapp.com",
@@ -69,7 +74,7 @@
             const [activeCat, setActiveCat] = useState("Todos");
             
             const [imgbbKey, setImgbbKey] = useState(localStorage.getItem('imgbb_key') || "");
-            const [logo, setLogo] = useState(localStorage.getItem('site_logo') || "");
+            const [logo, setLogo] = useState(localStorage.getItem('site_logo') || "e336005e-4c7f-4578-a43c-ccc080b8def9_2.jpeg");
             const [uploading, setUploading] = useState(false);
             
             const [newP, setNewP] = useState({ 
@@ -83,12 +88,13 @@
 
             useEffect(() => {
                 if (!user) return;
+                // Escuchador en tiempo real: los datos nunca se borran del servidor
                 const unsub = db.collection('products').onSnapshot(snap => {
                     const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setProducts(list.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)));
                     setLoading(false);
                 }, (err) => {
-                    console.error(err);
+                    console.error("Error Firestore:", err);
                     setLoading(false);
                 });
                 return unsub;
@@ -127,7 +133,7 @@
             };
 
             const deleteP = async (id) => {
-                if (confirm("¿Eliminar este artículo?")) await db.collection('products').doc(id).delete();
+                if (confirm("¿Eliminar este artículo definitivamente?")) await db.collection('products').doc(id).delete();
             };
 
             const filtered = products.filter(p => {
@@ -138,10 +144,11 @@
 
             return (
                 <div className="min-h-screen">
+                    {/* Barra de Navegación */}
                     <nav className="glass sticky top-0 z-50 p-4 border-b border-pink-100 shadow-sm">
                         <div className="max-w-7xl mx-auto flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <img src={logo || "https://placehold.co/100x100/1E3A5F/white?text=Trend"} className="h-12 w-12 rounded-full border-2 border-pink-500 object-cover" />
+                                <img src={logo} className="h-12 w-12 rounded-full border-2 border-pink-500 object-cover" />
                                 <div>
                                     <h1 className="text-xl font-black text-slate-800 tracking-tighter uppercase leading-none">Trend Shop</h1>
                                     <span className="text-[9px] font-bold text-pink-500 uppercase tracking-widest italic">Boutique Online</span>
@@ -161,6 +168,7 @@
                         </div>
                     </nav>
 
+                    {/* Hero Section */}
                     <header className="py-16 px-6 text-center">
                         <h2 className="text-6xl md:text-8xl font-black text-slate-800 leading-[0.85] tracking-tighter mb-4 uppercase">
                             TU ESTILO <br/><span className="text-transparent bg-clip-text bg-vibrant italic">MAS TREND</span>
@@ -175,7 +183,7 @@
                             <input type="text" placeholder="¿Buscas una marca o prenda?" className="w-full p-6 pl-14 rounded-full border-none shadow-2xl bg-white outline-none font-bold text-slate-700 focus:ring-2 focus:ring-pink-100" value={search} onChange={e => setSearch(e.target.value)} />
                         </div>
 
-                        {/* Barra de Secciones */}
+                        {/* Barra de Secciones (Filtros) */}
                         <div className="flex gap-3 overflow-x-auto pb-8 no-scrollbar scroll-smooth">
                             <button onClick={() => setActiveCat("Todos")} className={`category-pill px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-sm ${activeCat === "Todos" ? 'active' : 'bg-white text-slate-400'}`}>Todos</button>
                             {CATEGORIES.map(cat => (
@@ -183,6 +191,7 @@
                             ))}
                         </div>
 
+                        {/* Galería de Productos */}
                         {loading ? (
                             <div className="text-center py-20 text-pink-500"><i className="fas fa-spinner fa-spin text-4xl"></i></div>
                         ) : (
@@ -203,7 +212,7 @@
                                                 <span className="text-2xl font-black text-slate-800">${p.price}</span>
                                             </div>
                                             <h3 className="font-bold text-sm text-slate-700 line-clamp-2 h-10 mb-3 uppercase leading-tight tracking-tight">{p.name}</h3>
-                                            <button onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('¡Hola! Me interesa este artículo de Trend Shop: ' + p.name + ' ($' + p.price + ')')}`)} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-[10px] animate-bounce-soft uppercase shadow-xl hover:bg-emerald-600 transition-colors">
+                                            <button onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('¡Hola! Me interesa este artículo de Trend Shop: ' + p.name + ' (' + (p.brand || '') + ') $' + p.price)}`)} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-emerald-600 transition-colors">
                                                 <i className="fab fa-whatsapp mr-2 text-base"></i> Lo quiero
                                             </button>
                                         </div>
@@ -213,7 +222,6 @@
                         )}
                     </main>
 
-                    {/* Footer con Enlace WhatsApp */}
                     <footer className="bg-white border-t border-pink-50 py-20 px-6 text-center">
                         <div className="max-w-2xl mx-auto space-y-6">
                             <h4 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">¿Tienes dudas sobre una prenda?</h4>
@@ -227,7 +235,7 @@
                         </div>
                     </footer>
 
-                    {/* MODALES */}
+                    {/* MODALES DE ADMINISTRACIÓN */}
                     {showLogin && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
                             <div className="bg-white p-10 rounded-[3rem] max-w-xs w-full text-center shadow-2xl">
@@ -237,27 +245,6 @@
                                     <button className="w-full py-5 bg-slate-800 text-white rounded-3xl font-black shadow-xl hover:scale-105 transition-transform">ENTRAR</button>
                                 </form>
                                 <button onClick={() => setShowLogin(false)} className="mt-6 text-[10px] font-black text-slate-300 uppercase">Cancelar</button>
-                            </div>
-                        </div>
-                    )}
-
-                    {showSettings && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md overflow-y-auto">
-                            <div className="bg-white p-10 rounded-[4rem] max-w-md w-full shadow-2xl my-10">
-                                <h3 className="font-black mb-8 uppercase text-slate-800 text-2xl tracking-tighter">Ajustes</h3>
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4 mb-2 block">Link de tu Logo</label>
-                                        <input type="text" className="w-full p-5 bg-slate-50 rounded-3xl outline-none text-xs" value={logo} onChange={e => { setLogo(e.target.value); localStorage.setItem('site_logo', e.target.value); }} placeholder="https://..." />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4 mb-2 block">Clave API de ImgBB</label>
-                                        <input type="text" className="w-full p-5 bg-slate-50 rounded-3xl outline-none font-mono text-xs" value={imgbbKey} onChange={e => { setImgbbKey(e.target.value); localStorage.setItem('imgbb_key', e.target.value); }} />
-                                    </div>
-                                    <div className="pt-6">
-                                        <button onClick={() => setShowSettings(false)} className="w-full py-6 bg-pink-500 text-white rounded-3xl font-black shadow-2xl hover:scale-[1.02] transition-all uppercase text-xs tracking-widest">GUARDAR TODO</button>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     )}
@@ -283,7 +270,7 @@
                                             </select>
                                         </div>
                                         <div className="flex-1">
-                                            <input placeholder="Talla (Libre)" className="w-full p-5 bg-slate-50 rounded-3xl outline-none font-bold" value={newP.size} onChange={e => setNewP({...newP, size: e.target.value})} />
+                                            <input placeholder="Talla (Escribe libre)" className="w-full p-5 bg-slate-50 rounded-3xl outline-none font-bold" value={newP.size} onChange={e => setNewP({...newP, size: e.target.value})} />
                                         </div>
                                     </div>
 
@@ -303,6 +290,27 @@
                                     </button>
                                     <button type="button" onClick={() => setShowAdd(false)} className="w-full py-2 text-slate-400 font-bold uppercase text-[10px] text-center block">Cancelar</button>
                                 </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {showSettings && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md overflow-y-auto">
+                            <div className="bg-white p-10 rounded-[4rem] max-w-md w-full shadow-2xl my-10">
+                                <h3 className="font-black mb-8 uppercase text-slate-800 text-2xl tracking-tighter">Ajustes</h3>
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4 mb-2 block">Link de tu Logo</label>
+                                        <input type="text" className="w-full p-5 bg-slate-50 rounded-3xl outline-none text-xs" value={logo} onChange={e => { setLogo(e.target.value); localStorage.setItem('site_logo', e.target.value); }} placeholder="https://..." />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4 mb-2 block">Clave API de ImgBB</label>
+                                        <input type="text" className="w-full p-5 bg-slate-50 rounded-3xl outline-none font-mono text-xs" value={imgbbKey} onChange={e => { setImgbbKey(e.target.value); localStorage.setItem('imgbb_key', e.target.value); }} />
+                                    </div>
+                                    <div className="pt-6">
+                                        <button onClick={() => setShowSettings(false)} className="w-full py-6 bg-pink-500 text-white rounded-3xl font-black shadow-2xl hover:scale-[1.02] transition-all uppercase text-xs tracking-widest">GUARDAR TODO</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
