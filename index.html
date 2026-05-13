@@ -27,24 +27,45 @@
         .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
         @keyframes bounce-soft { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
         .animate-bounce-soft { animation: bounce-soft 3s infinite; }
+        
+        /* Mensaje de carga inicial */
+        #initial-loader {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #fdfcf0;
+            z-index: 9999;
+        }
     </style>
 </head>
 <body>
+    <div id="initial-loader">
+        <div class="mb-4 text-pink-500 animate-spin text-4xl">
+            <i class="fas fa-spinner"></i>
+        </div>
+        <p class="font-bold text-slate-400 uppercase tracking-widest text-xs">Abriendo Trend Shop...</p>
+    </div>
+
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // Configuration handling
+        // Configuration handling with Fallbacks
         const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
         const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'trend-shop-cdmx';
         const initialAuthToken = window.__initial_auth_token;
         
-        if (!firebase.apps.length && firebaseConfig.apiKey) {
+        // Initialize Firebase
+        if (typeof firebase !== 'undefined' && !firebase.apps.length && firebaseConfig.apiKey) {
             firebase.initializeApp(firebaseConfig);
         }
-        const db = firebase.firestore();
-        const auth = firebase.auth();
+        
+        const db = typeof firebase !== 'undefined' ? firebase.firestore() : null;
+        const auth = typeof firebase !== 'undefined' ? firebase.auth() : null;
 
         const CATEGORIES = ["Ropa", "Calzado", "Accesorios"];
         const GENDERS = ["Mujer", "Hombre", "Unisex", "Infantil"];
@@ -55,6 +76,7 @@
             const [isAdmin, setIsAdmin] = useState(false);
             const [products, setProducts] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
             const [showAdd, setShowAdd] = useState(false);
             const [showLogin, setShowLogin] = useState(false);
             const [showSettings, setShowSettings] = useState(false);
@@ -67,8 +89,12 @@
             
             const [newP, setNewP] = useState({ name: "", price: "", category: "Ropa", gender: "Mujer", size: "M", description: "", imageUrl: "" });
 
-            // RULE 3 - Auth Before Queries
             useEffect(() => {
+                if (!auth) {
+                    setError("Error: No se pudo conectar con los servicios de Google.");
+                    return;
+                }
+
                 const initAuth = async () => {
                     try {
                         if (typeof initialAuthToken !== 'undefined' && initialAuthToken) {
@@ -78,18 +104,23 @@
                         }
                     } catch (e) {
                         console.error("Auth failed:", e);
+                        setError("Error de conexión. Intenta recargar la página.");
                     }
                 };
+                
                 initAuth();
-                const unsubscribe = auth.onAuthStateChanged(u => setUser(u));
+                const unsubscribe = auth.onAuthStateChanged(u => {
+                    setUser(u);
+                    // Ocultar el loader inicial cuando el usuario está listo
+                    const loader = document.getElementById('initial-loader');
+                    if (loader) loader.style.display = 'none';
+                });
                 return () => unsubscribe();
             }, []);
 
-            // RULE 1 & 3 - Guarded listeners with Error Callbacks
             useEffect(() => {
                 if (!user || !db) return;
                 
-                // Public Data Path: /artifacts/{appId}/public/data/{collectionName}
                 const productsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products');
                 const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('site');
 
@@ -101,13 +132,13 @@
                 const unsubProducts = productsRef.onSnapshot(
                     snap => {
                         const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                        // Rule 2 - Sort in memory
                         setProducts(list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
                         setLoading(false);
                     },
                     err => {
                         console.error("Products fetch error:", err);
                         setLoading(false);
+                        setError("Permisos insuficientes o error de base de datos.");
                     }
                 );
 
@@ -154,7 +185,7 @@
             };
 
             const saveSettings = async () => {
-                if (!user) return;
+                if (!user || !db) return;
                 if (!imgbbKey) {
                     alert("Por favor escribe tu Clave API antes de guardar.");
                     return;
@@ -165,7 +196,6 @@
                     const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('site');
                     await configRef.set({ logo: logo }, { merge: true });
                     setShowSettings(false);
-                    alert("¡Configuración guardada!");
                 } catch (e) {
                     console.error("Save error:", e);
                 }
@@ -173,7 +203,7 @@
 
             const addProduct = async (e) => {
                 e.preventDefault();
-                if (!user) return;
+                if (!user || !db) return;
                 try {
                     const productsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products');
                     await productsRef.add({ ...newP, price: Number(newP.price), createdAt: Date.now() });
@@ -185,7 +215,7 @@
             };
 
             const deleteP = async (id) => {
-                if (!user || !confirm("¿Eliminar prenda?")) return;
+                if (!user || !db || !confirm("¿Eliminar prenda?")) return;
                 try {
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products').doc(id).delete();
                 } catch (err) {
@@ -194,6 +224,19 @@
             };
 
             const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+
+            if (error) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-6 text-center">
+                        <div className="max-w-xs">
+                            <i className="fas fa-exclamation-triangle text-pink-500 text-4xl mb-4"></i>
+                            <h2 className="font-black text-xl mb-2">¡Ups! Algo salió mal</h2>
+                            <p className="text-slate-400 text-sm mb-6">{error}</p>
+                            <button onClick={() => window.location.reload()} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black">REINTENTAR</button>
+                        </div>
+                    </div>
+                );
+            }
 
             return (
                 <div className="min-h-screen">
@@ -263,7 +306,7 @@
                         )}
                     </main>
 
-                    {/* MODAL CONFIGURACIÓN */}
+                    {}
                     {showSettings && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
                             <div className="bg-white p-8 rounded-[2.5rem] max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
@@ -349,8 +392,12 @@
             );
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        try {
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(<App />);
+        } catch (e) {
+            console.error("React render failed:", e);
+        }
     </script>
 </body>
 </html>
