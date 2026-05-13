@@ -33,21 +33,32 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <!-- Pantalla de carga por si algo tarda -->
+        <div style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 3rem; color: #FF0080;"></i>
+            <p style="margin-top: 1rem; font-weight: 900; color: #1E3A5F; text-transform: uppercase; letter-spacing: 2px;">Cargando Trend Shop...</p>
+        </div>
+    </div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
         // CONFIGURACIÓN DE NUBE (FIREBASE)
-        const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
+        // Intentamos leer la configuración, si no existe, usamos un objeto vacío para evitar que la página se rompa.
+        let db, auth;
         const appId = window.__app_id || 'trend-shop-prod';
-        const initialAuthToken = window.__initial_auth_token;
-
-        if (!firebase.apps.length && firebaseConfig.apiKey) {
-            firebase.initializeApp(firebaseConfig);
+        
+        try {
+            const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
+            if (!firebase.apps.length && firebaseConfig.apiKey) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+            auth = firebase.auth();
+        } catch (e) {
+            console.warn("Firebase no configurado aún, usando modo local.");
         }
-        const db = firebase.firestore();
-        const auth = firebase.auth();
 
         const WHATSAPP_NUMBER = "525581019848";
         const CATEGORIES = ["Ropa", "Calzado", "Accesorios"];
@@ -65,17 +76,19 @@
             const [pass, setPass] = useState("");
             const [search, setSearch] = useState("");
             
-            // Configuración persistente en la nube
+            // Configuración persistente
             const [imgbbKey, setImgbbKey] = useState(localStorage.getItem('imgbb_key') || "");
             const [logo, setLogo] = useState("e336005e-4c7f-4578-a43c-ccc080b8def9_2.jpeg");
             const [uploading, setUploading] = useState(false);
             const [newP, setNewP] = useState({ name: "", price: "", category: "Ropa", gender: "Mujer", size: "M", description: "", imageUrl: "" });
 
-            // 1. Iniciar sesión automáticamente (Necesario para ver datos)
+            // 1. Iniciar sesión automáticamente (Necesario para ver datos de nube)
             useEffect(() => {
+                if (!auth) { setLoading(false); return; }
                 const initAuth = async () => {
                     try {
-                        if (initialAuthToken) await auth.signInWithCustomToken(initialAuthToken);
+                        const token = window.__initial_auth_token;
+                        if (token) await auth.signInWithCustomToken(token);
                         else await auth.signInAnonymously();
                     } catch (e) { console.error("Error Auth:", e); }
                 };
@@ -85,7 +98,7 @@
 
             // 2. Cargar datos desde la Nube
             useEffect(() => {
-                if (!user || !db) return;
+                if (!user || !db) { setLoading(false); return; }
                 
                 const productsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products');
                 const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('site');
@@ -95,7 +108,7 @@
                     if (doc.exists && doc.data().logo) setLogo(doc.data().logo);
                 }, err => console.error("Error logo:", err));
 
-                // Escuchar cambios en productos (Para todos los usuarios)
+                // Escuchar cambios en productos
                 const unsubProducts = productsRef.onSnapshot(snap => {
                     const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setProducts(list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
@@ -135,14 +148,17 @@
 
             const saveSettings = async () => {
                 localStorage.setItem('imgbb_key', imgbbKey);
-                const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('site');
-                await configRef.set({ logo: logo }, { merge: true });
+                if (db) {
+                    const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('site');
+                    await configRef.set({ logo: logo }, { merge: true });
+                }
                 setShowSettings(false);
-                alert("¡Configuración guardada en la Nube!");
+                alert("¡Configuración guardada!");
             };
 
             const addProduct = async (e) => {
                 e.preventDefault();
+                if (!db) { alert("No hay conexión a la nube"); return; }
                 const productsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products');
                 await productsRef.add({ ...newP, price: Number(newP.price), createdAt: Date.now() });
                 setShowAdd(false);
@@ -184,7 +200,7 @@
                         <h2 className="text-6xl md:text-8xl font-black text-slate-800 leading-[0.85] tracking-tighter mb-6 uppercase">
                             TU ESTILO <br/><span className="text-transparent bg-clip-text bg-vibrant italic">COMO NUEVO</span>
                         </h2>
-                        <p className="text-slate-400 font-bold max-w-lg mx-auto italic">Seleccionamos las mejores prendas para que luzcas increíble sin gastar de más.</p>
+                        <p className="text-slate-400 font-bold max-w-lg mx-auto italic italic">Seleccionamos las mejores prendas para que luzcas increíble sin gastar de más.</p>
                     </header>
 
                     <main className="max-w-7xl mx-auto px-4 pb-20">
