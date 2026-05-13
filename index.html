@@ -3,280 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trend Shop | Tu Tienda Online</title>
+    <title>Trend Shop | Tu Estilo Favorito</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Firebase SDKs (Compat version) -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    
+    <!-- Iconos y Fuentes -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
         body { font-family: 'Outfit', sans-serif; background: #fdfcf0; color: #1E3A5F; margin: 0; }
         .bg-vibrant { background: linear-gradient(135deg, #FF0080 0%, #7928CA 100%); }
-        .product-card { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); border-radius: 2rem; background: white; }
-        .product-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
-        .magenta-glow { box-shadow: 0 0 15px rgba(233, 30, 99, 0.3); }
-        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .product-card { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); border-radius: 2.5rem; background: white; border: 1px solid rgba(0,0,0,0.05); overflow: hidden; }
+        .product-card:hover { transform: translateY(-10px); box-shadow: 0 25px 50px rgba(0,0,0,0.1); }
+        .magenta-glow { box-shadow: 0 10px 20px rgba(233, 30, 99, 0.2); }
+        .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
         @keyframes bounce-soft { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
         .animate-bounce-soft { animation: bounce-soft 3s infinite; }
-        
-        /* Mensaje de carga inicial */
-        #initial-loader {
-            position: fixed;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #fdfcf0;
-            z-index: 9999;
-            transition: opacity 0.5s ease;
-        }
     </style>
 </head>
 <body>
-    <div id="initial-loader">
-        <div class="mb-4 text-pink-500 animate-spin text-4xl">
-            <i class="fas fa-spinner"></i>
-        </div>
-        <p class="font-bold text-slate-400 uppercase tracking-widest text-xs">Abriendo Trend Shop...</p>
-    </div>
-
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // Configuration handling with Fallbacks
-        const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
-        const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'trend-shop-cdmx';
-        const initialAuthToken = window.__initial_auth_token;
-        
-        let db = null;
-        let auth = null;
-
-        try {
-            if (typeof firebase !== 'undefined' && !firebase.apps.length && firebaseConfig.apiKey) {
-                firebase.initializeApp(firebaseConfig);
-            }
-            if (typeof firebase !== 'undefined') {
-                db = firebase.firestore();
-                auth = firebase.auth();
-            }
-        } catch (e) {
-            console.error("Firebase init failed", e);
-        }
-
+        const WHATSAPP_NUMBER = "525581019848";
         const CATEGORIES = ["Ropa", "Calzado", "Accesorios"];
         const GENDERS = ["Mujer", "Hombre", "Unisex", "Infantil"];
         const SIZES = ["XS", "S", "M", "L", "XL", "Única", "24", "25", "26", "27", "28", "29", "30", "31", "32"];
 
         function App() {
-            const [user, setUser] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
-            const [products, setProducts] = useState([]);
-            const [loading, setLoading] = useState(true);
-            const [error, setError] = useState(null);
-            const [showAdd, setShowAdd] = useState(false);
             const [showLogin, setShowLogin] = useState(false);
             const [showSettings, setShowSettings] = useState(false);
+            const [showAdd, setShowAdd] = useState(false);
             const [pass, setPass] = useState("");
             const [search, setSearch] = useState("");
-            const [logo, setLogo] = useState("");
             
-            const [imgbbKey, setImgbbKey] = useState(localStorage.getItem('imgbb_key') || "");
+            // Datos persistentes en el navegador (Local Storage)
+            const [imgbbKey, setImgbbKey] = useState(() => localStorage.getItem('imgbb_key') || "");
+            const [logo, setLogo] = useState(() => localStorage.getItem('trend_logo') || "https://placehold.co/100x100/1E3A5F/white?text=Trend");
+            const [products, setProducts] = useState(() => {
+                const saved = localStorage.getItem('trend_products');
+                return saved ? JSON.parse(saved) : [];
+            });
+
             const [uploading, setUploading] = useState(false);
-            
             const [newP, setNewP] = useState({ name: "", price: "", category: "Ropa", gender: "Mujer", size: "M", description: "", imageUrl: "" });
 
-            useEffect(() => {
-                const hideLoader = () => {
-                    const loader = document.getElementById('initial-loader');
-                    if (loader) {
-                        loader.style.opacity = '0';
-                        setTimeout(() => loader.remove(), 500);
-                    }
-                };
-
-                if (!auth) {
-                    hideLoader();
-                    setError("Error: No se pudo conectar con los servicios de Google.");
-                    setLoading(false);
-                    return;
-                }
-
-                const initAuth = async () => {
-                    try {
-                        if (typeof initialAuthToken !== 'undefined' && initialAuthToken) {
-                            await auth.signInWithCustomToken(initialAuthToken);
-                        } else {
-                            await auth.signInAnonymously();
-                        }
-                    } catch (e) {
-                        console.error("Auth failed:", e);
-                    }
-                };
-                
-                initAuth();
-                const unsubscribe = auth.onAuthStateChanged(u => {
-                    setUser(u);
-                    hideLoader();
-                });
-
-                // Seguridad: Si después de 5 segundos no ha cargado, forzar el ocultamiento
-                const timeout = setTimeout(hideLoader, 5000);
-
-                return () => {
-                    unsubscribe();
-                    clearTimeout(timeout);
-                };
-            }, []);
-
-            useEffect(() => {
-                if (!user || !db) return;
-                
-                const productsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products');
-                const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('site');
-
-                const unsubConfig = configRef.onSnapshot(
-                    doc => { if (doc.exists && doc.data().logo) setLogo(doc.data().logo); },
-                    err => console.error("Config fetch error:", err)
-                );
-
-                const unsubProducts = productsRef.onSnapshot(
-                    snap => {
-                        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                        setProducts(list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
-                        setLoading(false);
-                    },
-                    err => {
-                        console.error("Products fetch error:", err);
-                        setLoading(false);
-                        // No bloqueamos la UI por errores de permisos en este punto
-                    }
-                );
-
-                return () => {
-                    unsubConfig();
-                    unsubProducts();
-                };
-            }, [user]);
+            // Guardar cambios automáticamente
+            useEffect(() => { localStorage.setItem('trend_products', JSON.stringify(products)); }, [products]);
+            useEffect(() => { localStorage.setItem('trend_logo', logo); }, [logo]);
+            useEffect(() => { localStorage.setItem('imgbb_key', imgbbKey); }, [imgbbKey]);
 
             const handleLogin = (e) => {
                 e.preventDefault();
                 if (pass === "trend2024") { setIsAdmin(true); setShowLogin(false); }
-                else { alert("Contraseña incorrecta"); }
+                else alert("Contraseña incorrecta");
                 setPass("");
             };
 
             const handleFileUpload = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                
-                const currentKey = localStorage.getItem('imgbb_key');
-                if (!currentKey) {
-                    alert("Primero guarda tu Clave API en el Engrane.");
-                    return;
-                }
+                if (!imgbbKey) { alert("Primero guarda tu Clave API en el Engrane Naranja."); return; }
 
                 setUploading(true);
                 const formData = new FormData();
                 formData.append("image", file);
 
                 try {
-                    const res = await fetch(`https://api.imgbb.com/1/upload?key=${currentKey}`, { method: "POST", body: formData });
+                    const res = await fetch(`https://api.imgbb.com/1/upload?key=${imgbbKey}`, { method: "POST", body: formData });
                     const data = await res.json();
-                    if (data.success) {
-                        setNewP(prev => ({ ...prev, imageUrl: data.data.url }));
-                    } else {
-                        alert("Error al subir: Clave API inválida.");
-                    }
-                } catch (error) {
-                    alert("Error de conexión.");
-                } finally {
-                    setUploading(false);
-                }
+                    if (data.success) setNewP(prev => ({ ...prev, imageUrl: data.data.url }));
+                    else alert("Error: Revisa que tu Clave API sea correcta.");
+                } catch (error) { alert("Error de conexión."); }
+                finally { setUploading(false); }
             };
 
-            const saveSettings = async () => {
-                if (!user || !db) return;
-                if (!imgbbKey) {
-                    alert("Por favor escribe tu Clave API antes de guardar.");
-                    return;
-                }
-                localStorage.setItem('imgbb_key', imgbbKey);
-                
-                try {
-                    const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('site');
-                    await configRef.set({ logo: logo }, { merge: true });
-                    setShowSettings(false);
-                } catch (e) {
-                    console.error("Save error:", e);
-                }
-            };
-
-            const addProduct = async (e) => {
+            const addProduct = (e) => {
                 e.preventDefault();
-                if (!user || !db) return;
-                try {
-                    const productsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products');
-                    await productsRef.add({ ...newP, price: Number(newP.price), createdAt: Date.now() });
-                    setShowAdd(false);
-                    setNewP({ name: "", price: "", category: "Ropa", gender: "Mujer", size: "M", description: "", imageUrl: "" });
-                } catch (err) {
-                    console.error("Add error:", err);
-                }
+                const product = { ...newP, id: Date.now(), price: Number(newP.price) };
+                setProducts([product, ...products]);
+                setShowAdd(false);
+                setNewP({ name: "", price: "", category: "Ropa", gender: "Mujer", size: "M", description: "", imageUrl: "" });
             };
 
-            const deleteP = async (id) => {
-                if (!user || !db || !confirm("¿Eliminar prenda?")) return;
-                try {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products').doc(id).delete();
-                } catch (err) {
-                    console.error("Delete error:", err);
+            const deleteP = (id) => {
+                if (confirm("¿Eliminar esta prenda del catálogo?")) {
+                    setProducts(products.filter(p => p.id !== id));
                 }
             };
 
             const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
-
-            if (error && !loading) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center p-6 text-center">
-                        <div className="max-w-xs">
-                            <i className="fas fa-exclamation-triangle text-pink-500 text-4xl mb-4"></i>
-                            <h2 className="font-black text-xl mb-2">¡Ups! Algo salió mal</h2>
-                            <p className="text-slate-400 text-sm mb-6">{error}</p>
-                            <button onClick={() => window.location.reload()} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black">REINTENTAR</button>
-                        </div>
-                    </div>
-                );
-            }
 
             return (
                 <div className="min-h-screen">
                     <nav className="glass sticky top-0 z-50 p-4 border-b border-pink-100">
                         <div className="max-w-7xl mx-auto flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <img src={logo || "https://placehold.co/100x100/1E3A5F/white?text=Trend"} className="h-12 w-12 rounded-full border-2 border-pink-500 object-cover" />
-                                <div className="hidden sm:block">
+                                <img src={logo} className="h-12 w-12 rounded-full border-2 border-pink-500 object-cover" />
+                                <div>
                                     <h1 className="text-xl font-black text-slate-800 tracking-tighter">TREND SHOP</h1>
                                     <span className="text-[9px] font-bold text-pink-500 uppercase tracking-widest">Catálogo Online</span>
                                 </div>
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => isAdmin ? setIsAdmin(false) : setShowLogin(true)} className="p-3 rounded-full bg-white shadow-sm text-slate-400 hover:text-pink-500 transition-colors"><i className={`fas ${isAdmin ? 'fa-unlock' : 'fa-lock'}`}></i></button>
+                                <button onClick={() => isAdmin ? setIsAdmin(false) : setShowLogin(true)} className="p-3 rounded-full bg-white shadow-sm text-slate-400 hover:text-pink-500 transition-all"><i className={`fas ${isAdmin ? 'fa-unlock' : 'fa-lock'}`}></i></button>
                                 {isAdmin && (
                                     <>
-                                        <button onClick={() => setShowSettings(true)} className="p-3 rounded-full bg-orange-50 text-orange-600 shadow-sm hover:bg-orange-100 transition-colors"><i className="fas fa-cog"></i></button>
-                                        <button onClick={() => setShowAdd(true)} className="bg-vibrant text-white px-5 py-2 rounded-full font-black text-xs magenta-glow hover:scale-105 transition-transform">+ PUBLICAR</button>
+                                        <button onClick={() => setShowSettings(true)} className="p-3 rounded-full bg-orange-50 text-orange-600 shadow-sm hover:bg-orange-500 hover:text-white transition-all"><i className="fas fa-cog"></i></button>
+                                        <button onClick={() => setShowAdd(true)} className="bg-vibrant text-white px-6 py-2 rounded-full font-black text-xs magenta-glow hover:scale-105 transition-all">+ PUBLICAR</button>
                                     </>
                                 )}
                             </div>
@@ -287,123 +127,123 @@
                         <h2 className="text-6xl md:text-8xl font-black text-slate-800 leading-[0.85] tracking-tighter mb-6 uppercase">
                             TU ESTILO <br/><span className="text-transparent bg-clip-text bg-vibrant italic">COMO NUEVO</span>
                         </h2>
+                        <p className="text-slate-400 font-bold max-w-lg mx-auto">Seleccionamos las mejores prendas para que luzcas increíble sin gastar de más.</p>
                     </header>
 
                     <main className="max-w-7xl mx-auto px-4 pb-20">
-                        <div className="mb-8 relative">
-                            <i className="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-pink-400"></i>
-                            <input type="text" placeholder="¿Qué buscas hoy?" className="w-full p-5 pl-12 rounded-3xl border-none shadow-xl bg-white outline-none font-bold focus:ring-2 focus:ring-pink-200" value={search} onChange={e => setSearch(e.target.value)} />
+                        <div className="mb-12 relative max-w-2xl mx-auto">
+                            <i className="fas fa-search absolute left-6 top-1/2 -translate-y-1/2 text-pink-400 text-xl"></i>
+                            <input type="text" placeholder="¿Qué buscas hoy?" className="w-full p-6 pl-14 rounded-full border-none shadow-2xl bg-white outline-none font-bold focus:ring-4 focus:ring-pink-100 transition-all" value={search} onChange={e => setSearch(e.target.value)} />
                         </div>
 
-                        {loading ? (
-                            <div className="text-center py-20 text-pink-500"><i className="fas fa-spinner fa-spin text-4xl"></i></div>
-                        ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                {filtered.map(p => (
-                                    <div key={p.id} className="product-card overflow-hidden flex flex-col group shadow-sm border border-slate-50">
-                                        <div className="aspect-[3/4] relative bg-slate-50">
-                                            <img src={p.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={p.name} />
-                                            <div className="absolute top-2 left-2 flex flex-col gap-1">
-                                                <span className="bg-slate-900/80 text-white text-[8px] font-bold px-2 py-1 rounded-full uppercase">{p.size}</span>
-                                            </div>
-                                            {isAdmin && <button onClick={() => deleteP(p.id)} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600 transition-colors"><i className="fas fa-trash text-xs"></i></button>}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                            {filtered.map(p => (
+                                <div key={p.id} className="product-card group shadow-sm">
+                                    <div className="aspect-[3/4] relative bg-slate-50 overflow-hidden">
+                                        <img src={p.imageUrl || "https://placehold.co/400x500/f3f4f6/94a3b8?text=Sin+Foto"} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={p.name} />
+                                        <div className="absolute top-4 left-4 flex flex-col gap-2">
+                                            <span className="glass px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter">{p.gender}</span>
+                                            <span className="bg-slate-900 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-lg">Talla {p.size}</span>
                                         </div>
-                                        <div className="p-4 flex flex-col flex-1">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <span className="text-[9px] font-black text-pink-500 uppercase">{p.category}</span>
-                                                <span className="text-xl font-black text-slate-800">${p.price}</span>
-                                            </div>
-                                            <h3 className="font-bold text-sm text-slate-700 line-clamp-2 h-10 mb-4 uppercase leading-tight tracking-tighter">{p.name}</h3>
-                                            <button onClick={() => window.open(`https://wa.me/525581019848?text=${encodeURIComponent('¡Hola! Me encanta esto: ' + p.name)}`)} className="w-full py-3 bg-emerald-500 text-white rounded-2xl font-black text-[10px] animate-bounce-soft uppercase shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors">
-                                                <i className="fab fa-whatsapp mr-1 text-base"></i> Lo quiero
-                                            </button>
-                                        </div>
+                                        {isAdmin && <button onClick={() => deleteP(p.id)} className="absolute top-4 right-4 bg-red-500 text-white p-3 rounded-full shadow-xl hover:bg-red-600 transition-colors"><i className="fas fa-trash-alt"></i></button>}
                                     </div>
-                                ))}
+                                    <div className="p-6">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[10px] font-black text-pink-500 uppercase tracking-widest">{p.category}</span>
+                                            <span className="text-2xl font-black text-slate-800">${p.price}</span>
+                                        </div>
+                                        <h3 className="font-bold text-sm text-slate-700 line-clamp-2 h-10 mb-6 uppercase leading-tight tracking-tight">{p.name}</h3>
+                                        <button onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('¡Hola! Me encanta esto: ' + p.name + ' ($' + p.price + '). ¿Sigue disponible?')}`)} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-[10px] animate-bounce-soft uppercase shadow-xl shadow-emerald-100 hover:bg-emerald-600 transition-colors">
+                                            <i className="fab fa-whatsapp mr-2 text-base"></i> Lo quiero
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {filtered.length === 0 && (
+                            <div className="text-center py-20 text-slate-300">
+                                <i className="fas fa-shopping-bag text-6xl mb-4"></i>
+                                <p className="font-black uppercase text-xs tracking-widest">No hay prendas disponibles</p>
                             </div>
-                        )}
-                        
-                        {!loading && filtered.length === 0 && (
-                            <div className="text-center py-20 text-slate-400 uppercase font-black tracking-widest text-xs">No hay prendas que coincidan</div>
                         )}
                     </main>
 
-                    {}
-                    {showSettings && (
+                    {/* MODALES */}
+                    {showLogin && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
-                            <div className="bg-white p-8 rounded-[2.5rem] max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
-                                <h3 className="font-black mb-6 uppercase text-slate-800 text-xl tracking-tighter">Ajustes de Tienda</h3>
+                            <div className="bg-white p-10 rounded-[3rem] max-w-xs w-full shadow-2xl text-center">
+                                <h3 className="font-black mb-8 text-xs uppercase text-slate-400 tracking-widest">Acceso Dueña</h3>
+                                <form onSubmit={handleLogin}>
+                                    <input type="password" placeholder="••••" autoFocus className="w-full p-5 bg-slate-100 rounded-3xl mb-6 text-center text-4xl tracking-[0.5em] outline-none focus:ring-4 focus:ring-pink-500/20 transition-all" value={pass} onChange={e => setPass(e.target.value)} />
+                                    <button className="w-full py-5 bg-slate-800 text-white rounded-3xl font-black shadow-xl hover:bg-slate-700 transition-all">ENTRAR</button>
+                                </form>
+                                <button onClick={() => setShowLogin(false)} className="mt-6 text-[10px] font-black text-slate-300 uppercase">Cancelar</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {showSettings && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md overflow-y-auto">
+                            <div className="bg-white p-10 rounded-[4rem] max-w-md w-full shadow-2xl my-10">
+                                <h3 className="font-black mb-8 uppercase text-slate-800 text-2xl tracking-tighter">Configuración</h3>
                                 <div className="space-y-6">
                                     <div>
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Link de tu Logo</label>
-                                        <input type="text" className="w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none focus:ring-2 focus:ring-pink-500" value={logo} onChange={e => setLogo(e.target.value)} placeholder="https://..." />
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4 mb-2 block">Link de tu Logo (Opcional)</label>
+                                        <input type="text" className="w-full p-5 bg-slate-50 rounded-3xl outline-none focus:ring-4 focus:ring-pink-500/20" value={logo} onChange={e => setLogo(e.target.value)} placeholder="https://..." />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Clave API de ImgBB</label>
-                                        <input type="text" className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-mono outline-none focus:ring-2 focus:ring-pink-500" value={imgbbKey} onChange={e => setImgbbKey(e.target.value)} placeholder="Pega tu clave aquí" />
-                                        <p className="text-[8px] text-pink-400 mt-2 font-bold ml-2 italic">Necesitas esta clave para que el botón de cámara funcione.</p>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4 mb-2 block">Clave API de ImgBB</label>
+                                        <input type="text" className="w-full p-5 bg-slate-50 rounded-3xl outline-none font-mono focus:ring-4 focus:ring-pink-500/20" value={imgbbKey} onChange={e => setImgbbKey(e.target.value)} placeholder="Pega tu clave aquí" />
+                                        <p className="text-[9px] text-pink-500 mt-3 font-bold px-4 leading-relaxed italic">Obtén tu clave gratis en api.imgbb.com para que el botón de cámara funcione.</p>
                                     </div>
-                                    <div className="pt-4 space-y-2">
-                                        <button onClick={saveSettings} className="w-full py-4 bg-pink-500 text-white rounded-2xl font-black shadow-lg shadow-pink-100 hover:scale-105 transition-all">GUARDAR TODO</button>
-                                        <button onClick={() => setShowSettings(false)} className="w-full py-2 text-slate-400 text-[10px] font-black uppercase">Cerrar</button>
+                                    <div className="pt-6">
+                                        <button onClick={() => { localStorage.setItem('imgbb_key', imgbbKey); localStorage.setItem('trend_logo', logo); setShowSettings(false); alert("¡Configuración guardada!"); }} className="w-full py-6 bg-pink-500 text-white rounded-3xl font-black shadow-2xl shadow-pink-200 hover:scale-[1.02] transition-all uppercase text-xs tracking-widest">GUARDAR TODO</button>
+                                        <button onClick={() => setShowSettings(false)} className="w-full py-3 text-slate-400 text-[10px] font-black uppercase mt-2">Cerrar</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {showLogin && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
-                            <div className="bg-white p-8 rounded-[2rem] max-w-xs w-full shadow-2xl text-center">
-                                <h3 className="font-black mb-6 text-xs uppercase text-slate-400 tracking-widest">Acceso Dueña</h3>
-                                <form onSubmit={handleLogin}>
-                                    <input type="password" placeholder="••••" autoFocus className="w-full p-4 bg-slate-100 rounded-2xl mb-4 text-center text-2xl tracking-[0.5em] outline-none border-2 border-transparent focus:border-pink-500" value={pass} onChange={e => setPass(e.target.value)} />
-                                    <button className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black shadow-xl">ENTRAR</button>
-                                </form>
-                                <button onClick={() => setShowLogin(false)} className="mt-4 text-[10px] font-black text-slate-300 uppercase">Cancelar</button>
-                            </div>
-                        </div>
-                    )}
-
                     {showAdd && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto">
-                            <div className="bg-white rounded-[3rem] w-full max-w-lg p-8 my-10 shadow-2xl">
-                                <h3 className="text-2xl font-black text-slate-800 mb-6 uppercase tracking-tighter">NUEVA PRENDA</h3>
-                                <form onSubmit={addProduct} className="space-y-4">
-                                    <input required placeholder="¿Cómo se llama la prenda?" className="w-full p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-pink-500 font-bold" value={newP.name} onChange={e => setNewP({...newP, name: e.target.value})} />
+                            <div className="bg-white rounded-[4rem] w-full max-w-lg p-10 my-10 shadow-2xl">
+                                <h3 className="text-3xl font-black text-slate-800 mb-8 uppercase tracking-tighter leading-none">NUEVA PRENDA</h3>
+                                <form onSubmit={addProduct} className="space-y-6">
+                                    <input required placeholder="¿Cómo se llama la prenda?" className="w-full p-5 bg-slate-50 rounded-3xl outline-none focus:ring-4 focus:ring-pink-500/20 font-bold" value={newP.name} onChange={e => setNewP({...newP, name: e.target.value})} />
                                     
                                     <div className="flex gap-4">
                                         <div className="flex-1">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-3">Precio ($)</label>
-                                            <input required type="number" className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-black" value={newP.price} onChange={e => setNewP({...newP, price: e.target.value})} />
+                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-4 mb-1 block">Precio ($)</label>
+                                            <input required type="number" className="w-full p-5 bg-slate-50 rounded-3xl outline-none font-black text-xl" value={newP.price} onChange={e => setNewP({...newP, price: e.target.value})} />
                                         </div>
                                         <div className="flex-1">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-3">Talla</label>
-                                            <select className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold" value={newP.size} onChange={e => setNewP({...newP, size: e.target.value})}>
+                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-4 mb-1 block">Talla</label>
+                                            <select className="w-full p-5 bg-slate-50 rounded-3xl outline-none font-bold" value={newP.size} onChange={e => setNewP({...newP, size: e.target.value})}>
                                                 {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
                                             </select>
                                         </div>
                                     </div>
                                     
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-slate-800 ml-4 flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase text-slate-800 ml-5 flex justify-between items-center">
                                             Foto del artículo
                                             {uploading && <span className="text-pink-500 animate-pulse text-[8px] font-black">SUBIENDO...</span>}
                                         </label>
-                                        <div className="flex gap-2">
-                                            <input required placeholder="El link aparecerá aquí..." className="flex-1 p-4 bg-slate-50 rounded-2xl text-[10px] outline-none opacity-60" value={newP.imageUrl} readOnly />
-                                            <label className="cursor-pointer bg-pink-500 text-white w-14 rounded-2xl flex items-center justify-center hover:bg-pink-600 transition-all shadow-md">
-                                                <i className={`fas ${uploading ? 'fa-spinner fa-spin' : 'fa-camera'} text-xl`}></i>
+                                        <div className="flex gap-3">
+                                            <input required placeholder="El link aparecerá aquí..." className="flex-1 p-5 bg-slate-50 rounded-3xl text-[10px] outline-none opacity-50" value={newP.imageUrl} readOnly />
+                                            <label className="cursor-pointer bg-pink-500 text-white w-16 rounded-3xl flex items-center justify-center hover:bg-pink-600 transition-all shadow-xl shadow-pink-100">
+                                                <i className={`fas ${uploading ? 'fa-spinner fa-spin' : 'fa-camera'} text-2xl`}></i>
                                                 <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
                                             </label>
                                         </div>
-                                        <p className="text-[8px] text-pink-400 ml-4 font-bold uppercase italic">Usa el icono de cámara para subir desde tu carrete.</p>
                                     </div>
 
-                                    <textarea placeholder="Descripción (ej. Como nuevo, tela fresca...)" className="w-full p-4 bg-slate-50 rounded-2xl h-24 outline-none font-medium focus:ring-2 focus:ring-pink-500" value={newP.description} onChange={e => setNewP({...newP, description: e.target.value})}></textarea>
+                                    <textarea placeholder="Descripción (ej. Como nuevo, tela fresca...)" className="w-full p-6 bg-slate-50 rounded-[2.5rem] h-28 outline-none font-medium focus:ring-4 focus:ring-pink-500/20" value={newP.description} onChange={e => setNewP({...newP, description: e.target.value})}></textarea>
                                     
-                                    <button className="w-full py-5 bg-pink-500 text-white rounded-3xl font-black shadow-xl disabled:opacity-50" disabled={uploading}>
-                                        {uploading ? "SUBIENDO FOTO..." : "PUBLICAR PRENDA"}
+                                    <button className="w-full py-6 bg-pink-500 text-white rounded-3xl font-black shadow-2xl shadow-pink-100 disabled:opacity-50 uppercase text-xs tracking-widest" disabled={uploading}>
+                                        {uploading ? "CARGANDO FOTO..." : "PUBLICAR EN CATÁLOGO"}
                                     </button>
                                     <button type="button" onClick={() => setShowAdd(false)} className="w-full py-2 text-slate-400 font-bold uppercase text-[10px]">Cancelar</button>
                                 </form>
@@ -414,12 +254,8 @@
             );
         }
 
-        try {
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<App />);
-        } catch (e) {
-            console.error("React render failed:", e);
-        }
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
